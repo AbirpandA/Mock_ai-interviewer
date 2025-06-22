@@ -13,7 +13,7 @@ const page = () => {
         <h2>Get Interview Ready </h2>
         <p className='text-lg'>Become batman of your interviews</p>
         <Button asChild className='btn-primary max-sm:w-full'>
-          <Link href='/interviews'>Start Interview</Link>
+          <Link href='/interview'>Start Interview</Link>
         </Button>
 
       </div>
