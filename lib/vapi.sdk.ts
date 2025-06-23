@@ -1,9 +1,8 @@
 import Vapi from '@vapi-ai/web';
 
-const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_WEBTOKEN!);
+export const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_WEBTOKEN!);
 
-// Start voice conversation
-vapi.start('YOUR_ASSISTANT_ID');
+
 
 // Listen for events
 vapi.on('call-start', () => console.log('Call started'));
