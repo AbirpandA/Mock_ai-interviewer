@@ -34,3 +34,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Notes on AI provider
+
+This project previously used Google's Gemini via `@ai-sdk/google`. Gemini has been unstable for this project, so server-side calls were switched to use GROQ's OpenAI-compatible endpoints.
+
+Environment variable required:
+
+- `GROQ_API_KEY` — your GROQ API key (used as the OpenAI `apiKey` with baseURL `https://api.groq.com/openai/v1`).
