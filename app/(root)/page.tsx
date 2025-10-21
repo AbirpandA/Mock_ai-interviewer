@@ -3,12 +3,14 @@ import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import InterviewCard from "@/components/InterviewCard";
+import PracticePlan from "@/components/PracticePlan";
 
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import {
   getInterviewsByUserId,
   getLatestInterviews,
 } from "@/lib/actions/general.action";
+import { getLatestPracticePlan } from "@/lib/actions/practice.action";
 
 async function Home() {
   const user = await getCurrentUser();
@@ -81,6 +83,8 @@ async function Home() {
   const hasPastInterviews = (userInterviews?.length || 0) > 0;
   const hasUpcomingInterviews = (allInterview?.length || 0) > 0;
 
+  const latestPlan = await getLatestPracticePlan(user.id);
+
   return (
     <>
       <section className="card-cta">
@@ -106,6 +110,10 @@ async function Home() {
 
       <section className="flex flex-col gap-6 mt-8">
         <h2>Your Interviews</h2>
+
+        <div className="mb-6">
+          <PracticePlan plan={latestPlan} />
+        </div>
 
         <div className="interviews-section">
           {hasPastInterviews ? (
