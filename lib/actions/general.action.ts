@@ -1,10 +1,20 @@
 "use server";
 
-import { generateObject } from "ai";
-import { google } from "@ai-sdk/google";
+import OpenAI from "openai";
 
 import { db } from "@/firebase/admin";
-import { feedbackSchema } from "@/constants";
+
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
+type ResponseShape = {
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{ text?: string } | string>;
+  }>;
+};
+type ContentItem = { text?: string } | string;
 
 export async function createFeedback(params: CreateFeedbackParams) {
   const { interviewId, userId, transcript, feedbackId } = params;
@@ -17,12 +27,7 @@ export async function createFeedback(params: CreateFeedbackParams) {
       )
       .join("");
 
-    const { object } = await generateObject({
-      model: google("gemini-2.0-flash-001", {
-        structuredOutputs: false,
-      }),
-      schema: feedbackSchema,
-      prompt: `
+    const prompt = `
         You are an AI interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories. Be thorough and detailed in your analysis. Don't be lenient with the candidate. If there are mistakes or areas for improvement, point them out.
         Transcript:
         ${formattedTranscript}
@@ -33,10 +38,57 @@ export async function createFeedback(params: CreateFeedbackParams) {
         - **Problem-Solving**: Ability to analyze problems and propose solutions.
         - **Cultural & Role Fit**: Alignment with company values and job role.
         - **Confidence & Clarity**: Confidence in responses, engagement, and clarity.
-        `,
-      system:
-        "You are a professional interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories",
+        `;
+
+    const resp = await client.responses.create({
+      model: "openai/gpt-oss-20b",
+      input: prompt,
     });
+
+    // Try to extract structured result from response. Fallback to parsing text.
+    const r = resp as unknown as ResponseShape;
+    let outText = "";
+    if (typeof r.output_text === "string") {
+      outText = r.output_text;
+    } else if (Array.isArray(r.output) && r.output.length) {
+      const first = r.output[0];
+      if (first && typeof first === "object") {
+        const content = first.content;
+        if (Array.isArray(content) && content.length) {
+          const textItem = content.find(
+            (c: ContentItem) =>
+              typeof c !== "string" && typeof c.text === "string"
+          ) as { text: string } | undefined;
+          if (textItem && typeof textItem.text === "string") {
+            outText = textItem.text;
+          } else if (typeof content[0] === "string") {
+            outText = content[0] as string;
+          }
+        }
+      }
+    }
+
+    // Expect the model to return JSON matching feedbackSchema; attempt to parse.
+    type FeedbackObject = {
+      totalScore?: number;
+      categoryScores?: Record<string, number>;
+      strengths?: string;
+      areasForImprovement?: string;
+      finalAssessment?: string;
+    };
+    let object: FeedbackObject = {};
+    try {
+      object = JSON.parse(outText) as FeedbackObject;
+    } catch {
+      // If parsing fails, put the raw text into finalAssessment
+      object = {
+        totalScore: 0,
+        categoryScores: {},
+        strengths: "",
+        areasForImprovement: "",
+        finalAssessment: outText,
+      };
+    }
 
     const feedback = {
       interviewId: interviewId,

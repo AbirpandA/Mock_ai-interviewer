@@ -1,16 +1,25 @@
-import { generateText } from "ai";
-import { google } from "@ai-sdk/google";
+import OpenAI from "openai";
 
 import { db } from "@/firebase/admin";
 import { getRandomInterviewCover } from "@/lib/utils";
+
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
+type ResponseShape = {
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{ text?: string } | string>;
+  }>;
+};
+type ContentItem = { text?: string } | string;
 
 export async function POST(request: Request) {
   const { type, role, level, techstack, amount, userid } = await request.json();
 
   try {
-    const { text: questions } = await generateText({
-      model: google("gemini-2.0-flash-001"),
-      prompt: `Prepare questions for a job interview.
+    const prompt = `Prepare questions for a job interview.
         The job role is ${role}.
         The job experience level is ${level}.
         The tech stack used in the job is: ${techstack}.
@@ -22,15 +31,41 @@ export async function POST(request: Request) {
         ["Question 1", "Question 2", "Question 3"]
         
         Thank you! <3
-    `,
+    `;
+
+    const resp = await client.responses.create({
+      model: "openai/gpt-oss-20b",
+      input: prompt,
     });
+
+    const r = resp as unknown as ResponseShape;
+    let questionsText = "";
+    if (typeof r.output_text === "string") {
+      questionsText = r.output_text;
+    } else if (Array.isArray(r.output) && r.output.length) {
+      const first = r.output[0];
+      if (first && typeof first === "object") {
+        const content = first.content;
+        if (Array.isArray(content) && content.length) {
+          const textItem = content.find(
+            (c: ContentItem) =>
+              typeof c !== "string" && typeof c.text === "string"
+          ) as { text: string } | undefined;
+          if (textItem && typeof textItem.text === "string") {
+            questionsText = textItem.text;
+          } else if (typeof content[0] === "string") {
+            questionsText = content[0] as string;
+          }
+        }
+      }
+    }
 
     const interview = {
       role: role,
       type: type,
       level: level,
       techstack: techstack.split(","),
-      questions: JSON.parse(questions),
+      questions: JSON.parse(questionsText),
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
